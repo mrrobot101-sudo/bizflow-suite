@@ -13,6 +13,12 @@ export function saveTransaction(tx: Transaction): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
 }
 
+export function saveTransactions(txns: Transaction[]): void {
+  const all = getTransactions();
+  all.unshift(...txns);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+}
+
 export function deleteTransaction(id: string): void {
   const all = getTransactions().filter(t => t.id !== id);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
