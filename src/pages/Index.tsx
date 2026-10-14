@@ -1,16 +1,29 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { DollarSign, TrendingUp, ShoppingCart, CreditCard, PlusCircle } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { getTransactions } from '@/services/transactionService';
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { getTransactions, localDateStr } from '@/services/transactionService';
 import { SERVICE_LABELS, Transaction } from '@/types/transaction';
 import StatCard from '@/components/StatCard';
 
 export default function Dashboard() {
   const [transactions] = useState<Transaction[]>(() => getTransactions());
 
-  const today = new Date().toISOString().split('T')[0];
-  const currentMonth = new Date().toISOString().slice(0, 7);
+  const today = localDateStr();
+  const currentMonth = today.slice(0, 7);
+
+  const trendData = useMemo(() => {
+    const byDay: Record<string, number> = {};
+    transactions.forEach(t => { byDay[t.date] = (byDay[t.date] || 0) + t.amount; });
+    return Array.from({ length: 14 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (13 - i));
+      const key = localDateStr(d);
+      return { name: d.toLocaleDateString('en-KE', { day: 'numeric', month: 'short' }), value: byDay[key] || 0 };
+    });
+  }, [transactions]);
+
+  const recent = transactions.slice(0, 5);
 
   const stats = useMemo(() => {
     const todayTxns = transactions.filter(t => t.date === today);
@@ -41,7 +54,7 @@ export default function Dashboard() {
       .slice(0, 5);
   }, [transactions, currentMonth]);
 
-  const COLORS = ['hsl(145, 63%, 32%)', 'hsl(35, 90%, 55%)'];
+  const COLORS = ['hsl(var(--primary))', 'hsl(var(--accent))'];
 
   return (
     <div className="space-y-6">
@@ -69,6 +82,25 @@ export default function Dashboard() {
         <StatCard title="M-Pesa" value={`KES ${stats.mpesaTotal.toLocaleString()}`} icon={ShoppingCart} variant="accent" />
       </div>
 
+      {/* Revenue trend */}
+      <div className="bg-card border rounded-xl p-4">
+        <h3 className="font-heading font-semibold mb-4 text-sm">Revenue — Last 14 Days</h3>
+        <ResponsiveContainer width="100%" height={200}>
+          <AreaChart data={trendData}>
+            <defs>
+              <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <XAxis dataKey="name" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+            <YAxis tick={{ fontSize: 10 }} width={45} />
+            <Tooltip formatter={(value: number) => `KES ${value.toLocaleString()}`} />
+            <Area type="monotone" dataKey="value" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#rev)" />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
       {/* Charts */}
       <div className="grid md:grid-cols-2 gap-4">
         <div className="bg-card border rounded-xl p-4">
@@ -79,7 +111,7 @@ export default function Dashboard() {
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip formatter={(value: number) => `KES ${value.toLocaleString()}`} />
-                <Bar dataKey="value" fill="hsl(145, 63%, 32%)" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="value" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -108,6 +140,29 @@ export default function Dashboard() {
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-accent inline-block" /> M-Pesa</span>
           </div>
         </div>
+      </div>
+
+      {/* Recent */}
+      <div className="bg-card border rounded-xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-heading font-semibold text-sm">Recent Sales</h3>
+          <Link to="/transactions" className="text-xs text-primary hover:underline">View all</Link>
+        </div>
+        {recent.length === 0 ? (
+          <p className="text-muted-foreground text-sm text-center py-6">No sales recorded yet.</p>
+        ) : (
+          <ul className="divide-y">
+            {recent.map(t => (
+              <li key={t.id} className="flex items-center justify-between py-2 text-sm">
+                <div className="min-w-0">
+                  <p className="font-medium truncate">{t.customerName}</p>
+                  <p className="text-xs text-muted-foreground">{SERVICE_LABELS[t.serviceType]} · {t.date} · {t.paymentMethod === 'mpesa' ? 'M-Pesa' : 'Cash'}</p>
+                </div>
+                <span className="font-heading font-bold shrink-0">KES {t.amount.toLocaleString()}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

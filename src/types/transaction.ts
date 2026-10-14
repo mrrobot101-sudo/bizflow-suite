@@ -35,4 +35,6 @@ export interface Transaction {
   date: string; // ISO string
   time: string; // HH:mm
   notes?: string;
+  quantity?: number;
+  mpesaCode?: string;
 }
