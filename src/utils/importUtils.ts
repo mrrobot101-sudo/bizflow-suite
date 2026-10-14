@@ -23,10 +23,16 @@ function parseDate(val: any): string {
   if (!val) return new Date().toISOString().split('T')[0];
   if (typeof val === 'number') {
     // Excel serial date
-    const date = new Date((val - 25569) * 86400 * 1000);
+    const date = new Date(Math.round((val - 25569) * 86400 * 1000));
     return date.toISOString().split('T')[0];
   }
   const str = String(val).trim();
+  const dmy = str.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if (dmy) {
+    const y = dmy[3].length === 2 ? '20' + dmy[3] : dmy[3];
+    return `${y}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
   const d = new Date(str);
   if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
   return new Date().toISOString().split('T')[0];
@@ -59,6 +65,8 @@ export function parseImportFile(file: File): Promise<Transaction[]> {
             amount: Math.max(0, parseFloat(String(row['Amount'] || row['amount'] || row['Amount (KES)'] || '0')) || 0),
             date: date > today ? today : date,
             time: String(row['Time'] || row['time'] || '12:00').trim().slice(0, 5),
+            quantity: Math.max(1, parseInt(String(row['Quantity'] || row['quantity'] || row['Qty'] || '1')) || 1),
+            mpesaCode: String(row['M-Pesa Code'] || row['Mpesa Code'] || row['Transaction Code'] || row['Code'] || '').trim().toUpperCase().slice(0, 12),
             notes: String(row['Notes'] || row['notes'] || '').trim().slice(0, 200),
           };
         }).filter(t => t.amount > 0 && t.customerName);

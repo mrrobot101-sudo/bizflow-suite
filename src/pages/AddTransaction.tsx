@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { saveTransaction, saveTransactions, generateId } from '@/services/transactionService';
 import { SERVICE_LABELS, ServiceType, PaymentMethod, Transaction } from '@/types/transaction';
+import { downloadImportTemplate } from '@/utils/exportUtils';
 import { parseImportFile } from '@/utils/importUtils';
 import { format } from 'date-fns';
 import { CalendarIcon, PlusCircle, Trash2, Upload, History, X } from 'lucide-react';
@@ -42,6 +43,8 @@ export default function AddTransaction() {
     serviceType: 'printing' as ServiceType,
     paymentMethod: 'cash' as PaymentMethod,
     amount: '',
+    quantity: '1',
+    mpesaCode: '',
     notes: '',
   });
 
@@ -67,6 +70,11 @@ export default function AddTransaction() {
       toast.error('Enter a valid amount (1 - 1,000,000)');
       return;
     }
+    const code = form.mpesaCode.trim().toUpperCase();
+    if (form.paymentMethod === 'mpesa' && code && !/^[A-Z0-9]{8,12}$/.test(code)) {
+      toast.error('M-Pesa code should be 8–12 letters/numbers (e.g. SBK1A2B3C4)');
+      return;
+    }
     if (selectedDate > today) {
       toast.error('Date cannot be in the future');
       return;
@@ -82,13 +90,15 @@ export default function AddTransaction() {
       date: format(selectedDate, 'yyyy-MM-dd'),
       time: selectedTime,
       notes: form.notes.trim().slice(0, 200),
+      quantity: Math.max(1, parseInt(form.quantity) || 1),
+      mpesaCode: form.paymentMethod === 'mpesa' ? code : '',
     });
 
     toast.success('Transaction saved!');
     if (!historicalMode) {
       navigate('/');
     } else {
-      setForm(f => ({ ...f, customerName: '', phoneNumber: '', amount: '', notes: '' }));
+      setForm(f => ({ ...f, customerName: '', phoneNumber: '', amount: '', quantity: '1', mpesaCode: '', notes: '' }));
     }
   };
 
@@ -106,6 +116,7 @@ export default function AddTransaction() {
 
   const handleBulkSubmit = () => {
     const todayStr = format(new Date(), 'yyyy-MM-dd');
+    if (!window.confirm) return;
     const valid: Transaction[] = [];
     const errors: number[] = [];
 
@@ -210,9 +221,15 @@ export default function AddTransaction() {
               ))}
             </select>
           </div>
-          <div>
-            <label className={labelClass}>Amount (KES) *</label>
-            <input className={inputClass} type="number" value={form.amount} onChange={e => update('amount', e.target.value)} placeholder="e.g. 50" min="1" max="1000000" required />
+          <div className="grid grid-cols-[0.6fr_1fr] gap-2">
+            <div>
+              <label className={labelClass}>Qty</label>
+              <input className={inputClass} type="number" inputMode="numeric" value={form.quantity} onChange={e => update('quantity', e.target.value)} min="1" max="10000" />
+            </div>
+            <div>
+              <label className={labelClass}>Total (KES) *</label>
+              <input className={inputClass} type="number" inputMode="decimal" value={form.amount} onChange={e => update('amount', e.target.value)} placeholder="e.g. 50" min="1" max="1000000" required />
+            </div>
           </div>
         </div>
 
@@ -264,6 +281,13 @@ export default function AddTransaction() {
             ))}
           </div>
         </div>
+
+        {form.paymentMethod === 'mpesa' && (
+          <div className="animate-fade-in">
+            <label className={labelClass}>M-Pesa Transaction Code</label>
+            <input className={cn(inputClass, 'uppercase tracking-wider')} value={form.mpesaCode} onChange={e => update('mpesaCode', e.target.value.toUpperCase())} placeholder="e.g. SBK1A2B3C4" maxLength={12} />
+          </div>
+        )}
 
         <div>
           <label className={labelClass}>Notes (optional)</label>
@@ -363,8 +387,11 @@ export default function AddTransaction() {
         <div className="bg-card border rounded-xl p-5 space-y-3 animate-fade-in">
           <h2 className="font-heading font-semibold text-lg">Import from Spreadsheet</h2>
           <p className="text-sm text-muted-foreground">
-            Upload an Excel (.xlsx) or CSV file with columns: <strong>Customer, Service, Amount, Payment, Date</strong>
+            Upload an Excel (.xlsx) or CSV file with columns: <strong>Customer, Service, Amount, Payment, Date</strong> (optional: Phone, Quantity, M-Pesa Code, Time, Notes).
           </p>
+          <button type="button" onClick={downloadImportTemplate} className="text-sm text-primary hover:underline">
+            Download sample template
+          </button>
           <input
             ref={fileInputRef}
             type="file"
