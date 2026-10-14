@@ -116,7 +116,6 @@ export default function AddTransaction() {
 
   const handleBulkSubmit = () => {
     const todayStr = format(new Date(), 'yyyy-MM-dd');
-    if (!window.confirm) return;
     const valid: Transaction[] = [];
     const errors: number[] = [];
 
