@@ -8,6 +8,13 @@
       "when": 1792011684425,
       "tag": "0000_cyber_mis_auth_and_transactions",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792023739255,
+      "tag": "0001_transactions_realtime",
+      "breakpoints": true
     }
   ]
 }

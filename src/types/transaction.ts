@@ -37,4 +37,5 @@ export interface Transaction {
   notes?: string;
   quantity?: number;
   mpesaCode?: string;
+  createdBy?: string;
 }

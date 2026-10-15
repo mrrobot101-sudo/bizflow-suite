@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react';
 import { FileSpreadsheet, FileText } from 'lucide-react';
-import { getTransactions } from '@/services/transactionService';
+import { useTransactions } from '@/hooks/useTransactions';
 import { exportToExcel, exportToCsv } from '@/utils/exportUtils';
 import { toast } from 'sonner';
 
 export default function ExportPage() {
-  const [transactions] = useState(() => getTransactions());
+  const { transactions } = useTransactions();
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
