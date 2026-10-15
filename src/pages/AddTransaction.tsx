@@ -2,6 +2,8 @@ import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { saveTransaction, saveTransactions, generateId } from '@/services/transactionService';
+import { useQueryClient } from '@tanstack/react-query';
+import { TX_KEY } from '@/hooks/useTransactions';
 import { SERVICE_LABELS, ServiceType, PaymentMethod, Transaction } from '@/types/transaction';
 import { downloadImportTemplate } from '@/utils/exportUtils';
 import { parseImportFile } from '@/utils/importUtils';
@@ -32,6 +34,8 @@ const emptyRow = (): BulkRow => ({
 
 export default function AddTransaction() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
+  const [saving, setSaving] = useState(false);
   const [historicalMode, setHistoricalMode] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedTime, setSelectedTime] = useState(new Date().toTimeString().slice(0, 5));
@@ -57,7 +61,7 @@ export default function AddTransaction() {
 
   const update = (field: string, value: string) => setForm(f => ({ ...f, [field]: value }));
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = form.customerName.trim();
     const amount = parseFloat(form.amount);
@@ -80,7 +84,9 @@ export default function AddTransaction() {
       return;
     }
 
-    saveTransaction({
+    setSaving(true);
+    try {
+    await saveTransaction({
       id: generateId(),
       customerName: name,
       phoneNumber: form.phoneNumber.trim().slice(0, 15),
@@ -94,6 +100,13 @@ export default function AddTransaction() {
       mpesaCode: form.paymentMethod === 'mpesa' ? code : '',
     });
 
+    } catch (err: any) {
+      setSaving(false);
+      toast.error(err.message || 'Could not save. Check your connection.');
+      return;
+    }
+    setSaving(false);
+    qc.invalidateQueries({ queryKey: TX_KEY });
     toast.success('Transaction saved!');
     if (!historicalMode) {
       navigate('/');
@@ -114,7 +127,7 @@ export default function AddTransaction() {
     setBulkRows(rows => rows.filter((_, i) => i !== index));
   };
 
-  const handleBulkSubmit = () => {
+  const handleBulkSubmit = async () => {
     const todayStr = format(new Date(), 'yyyy-MM-dd');
     const valid: Transaction[] = [];
     const errors: number[] = [];
@@ -147,7 +160,13 @@ export default function AddTransaction() {
       return;
     }
 
-    saveTransactions(valid);
+    try {
+      await saveTransactions(valid);
+    } catch (err: any) {
+      toast.error(err.message || 'Could not save');
+      return;
+    }
+    qc.invalidateQueries({ queryKey: TX_KEY });
     toast.success(`Saved ${valid.length} transaction${valid.length > 1 ? 's' : ''}!`);
     if (errors.length > 0) {
       toast.warning(`Skipped row${errors.length > 1 ? 's' : ''} ${errors.join(', ')} (invalid data)`);
@@ -166,16 +185,17 @@ export default function AddTransaction() {
         toast.error('No valid transactions found in file');
         return;
       }
-      saveTransactions(transactions);
+      await saveTransactions(transactions);
+      qc.invalidateQueries({ queryKey: TX_KEY });
       toast.success(`Imported ${transactions.length} transaction${transactions.length > 1 ? 's' : ''}!`);
     } catch (err: any) {
       toast.error(err.message || 'Import failed');
     }
 
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, []);
+  }, [qc]);
 
-  const inputClass = "w-full px-3 py-2.5 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring";
+  const inputClass = "w-full px-3 py-2.5 rounded-lg border border-input bg-background text-foreground text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-ring";
   const labelClass = "block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wider";
 
   return (
@@ -293,8 +313,8 @@ export default function AddTransaction() {
           <input className={inputClass} value={form.notes} onChange={e => update('notes', e.target.value)} placeholder="e.g. 5 pages, color" maxLength={200} />
         </div>
 
-        <button type="submit" className="w-full gradient-primary text-primary-foreground py-3 rounded-lg font-semibold text-sm hover:opacity-90 transition-opacity">
-          Save Transaction
+        <button type="submit" disabled={saving} className="w-full disabled:opacity-60 gradient-primary text-primary-foreground py-3 rounded-lg font-semibold text-sm hover:opacity-90 transition-opacity">
+          {saving ? 'Saving…' : 'Save Transaction'}
         </button>
       </form>
 

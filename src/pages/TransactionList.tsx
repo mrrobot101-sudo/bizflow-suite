@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react';
 import { Search, Trash2, X } from 'lucide-react';
-import { getTransactions, deleteTransaction } from '@/services/transactionService';
+import { deleteTransaction } from '@/services/transactionService';
+import { useTransactions } from '@/hooks/useTransactions';
+import { useAuth } from '@/contexts/AuthContext';
 import { SERVICE_LABELS, Transaction, PaymentMethod, ServiceType } from '@/types/transaction';
 import { toast } from 'sonner';
 import {
@@ -11,7 +13,8 @@ import {
 const PAGE_SIZE = 50;
 
 export default function TransactionList() {
-  const [transactions, setTransactions] = useState<Transaction[]>(() => getTransactions());
+  const { transactions, isLoading, refresh } = useTransactions();
+  const { role } = useAuth();
   const [search, setSearch] = useState('');
   const [filterPayment, setFilterPayment] = useState<'all' | PaymentMethod>('all');
   const [filterService, setFilterService] = useState<'all' | ServiceType>('all');
@@ -49,9 +52,9 @@ export default function TransactionList() {
 
   const confirmDelete = () => {
     if (!pendingDelete) return;
-    deleteTransaction(pendingDelete.id);
-    setTransactions(getTransactions());
-    toast.success('Transaction deleted');
+    deleteTransaction(pendingDelete.id)
+      .then(() => { toast.success('Transaction deleted'); refresh(); })
+      .catch((e) => toast.error(e.message || 'Delete failed'));
     setPendingDelete(null);
   };
 
@@ -95,7 +98,7 @@ export default function TransactionList() {
       <div className="space-y-2">
         {filtered.length === 0 ? (
           <div className="bg-card border rounded-xl p-8 text-center text-muted-foreground text-sm">
-            {transactions.length === 0 ? 'No transactions yet. Record your first sale!' : 'No transactions match your filters.'}
+            {isLoading ? 'Loading…' : transactions.length === 0 ? 'No transactions yet. Record your first sale!' : 'No transactions match your filters.'}
           </div>
         ) : (
           filtered.slice(0, limit).map(t => (
@@ -113,9 +116,9 @@ export default function TransactionList() {
                 </p>
               </div>
               <p className="font-heading font-bold text-sm shrink-0">KES {t.amount.toLocaleString()}</p>
-              <button onClick={() => setPendingDelete(t)} aria-label="Delete transaction" className="p-1 text-muted-foreground hover:text-destructive transition-colors shrink-0">
+              {role === 'owner' && <button onClick={() => setPendingDelete(t)} aria-label="Delete transaction" className="p-1 text-muted-foreground hover:text-destructive transition-colors shrink-0">
                 <Trash2 size={16} />
-              </button>
+              </button>}
             </div>
           ))
         )}

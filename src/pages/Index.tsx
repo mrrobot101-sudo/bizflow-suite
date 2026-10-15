@@ -1,13 +1,29 @@
 import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
+import { useTransactions } from '@/hooks/useTransactions';
+import { useAuth } from '@/contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import { DollarSign, TrendingUp, ShoppingCart, CreditCard, PlusCircle } from 'lucide-react';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { getTransactions, localDateStr } from '@/services/transactionService';
+import { getLegacyLocalTransactions, clearLegacyLocalTransactions, saveTransactions, localDateStr } from '@/services/transactionService';
 import { SERVICE_LABELS, Transaction } from '@/types/transaction';
 import StatCard from '@/components/StatCard';
 
 export default function Dashboard() {
-  const [transactions] = useState<Transaction[]>(() => getTransactions());
+  const { transactions, isLoading, refresh } = useTransactions();
+  const { role, displayName } = useAuth();
+  const [legacy, setLegacy] = useState<Transaction[]>(() => getLegacyLocalTransactions());
+  const uploadLegacy = async () => {
+    try {
+      await saveTransactions(legacy);
+      clearLegacyLocalTransactions();
+      toast.success(`Uploaded ${legacy.length} records to the cloud`);
+      setLegacy([]);
+      refresh();
+    } catch (e: any) {
+      toast.error(e.message || 'Upload failed');
+    }
+  };
 
   const today = localDateStr();
   const currentMonth = today.slice(0, 7);
@@ -60,7 +76,7 @@ export default function Dashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-heading font-bold">Dashboard</h1>
+          <h1 className="text-2xl font-heading font-bold">{displayName ? `Hi, ${displayName.split(' ')[0]}` : 'Dashboard'}</h1>
           <p className="text-sm text-muted-foreground">
             {new Date().toLocaleDateString('en-KE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
@@ -73,6 +89,14 @@ export default function Dashboard() {
           <span className="hidden sm:inline">New Sale</span>
         </Link>
       </div>
+
+      {role === 'owner' && legacy.length > 0 && (
+        <div className="bg-accent/10 border border-accent/30 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center gap-2 justify-between text-sm">
+          <span>{legacy.length} sales are saved only on this device.</span>
+          <button onClick={uploadLegacy} className="gradient-primary text-primary-foreground px-3 py-2 rounded-lg font-medium">Move them to the shared database</button>
+        </div>
+      )}
+      {isLoading && <p className="text-sm text-muted-foreground">Loading sales…</p>}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
